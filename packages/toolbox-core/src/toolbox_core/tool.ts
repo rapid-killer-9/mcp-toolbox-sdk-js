@@ -13,10 +13,10 @@
 // limitations under the License.
 
 function ToolboxTool(name: string) {
-  const callable = async function (action: { a: number; b: number }) {
+  const callable = async function (action: {a: number; b: number}) {
     // MOCK API CALL
     async function api_resp(a: number, b: number): Promise<number> {
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 10));
       return a + 2 * b;
     }
 
@@ -30,4 +30,4 @@ function ToolboxTool(name: string) {
   return callable;
 }
 
-export { ToolboxTool };
+export {ToolboxTool};
