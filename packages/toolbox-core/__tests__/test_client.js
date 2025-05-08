@@ -1,4 +1,4 @@
-import { ToolboxClient } from '../build/toolbox_core/client.js';
+import { ToolboxClient } from '../src/toolbox_core/client';
 
 const client = new ToolboxClient('https://some_base_url');
 
