@@ -9,7 +9,11 @@
         "developers",
         "google",
         "toolbox",
-        "sdk"
+        "sdk",
+        "llm",
+        "genai",
+        "agents",
+        "mcp"
     ],
     "main": "build/client.js",
     "types": "build/client.d.ts",
