@@ -21,7 +21,7 @@ class ToolboxClient {
      * @param {string} url - The base URL for the Toolbox service API.
      */
     constructor(
-        url,
+        url: string,
     ) {
         this._baseUrl = url;
     }
@@ -31,8 +31,8 @@ class ToolboxClient {
      * @param {int} num2 - Second number.
      * @returns {int} - Mock API response.
      */
-    async getToolResponse(num1, num2) {
-        const tool = new ToolboxTool("tool1");
+    async getToolResponse(num1: number, num2: number) {
+        const tool = ToolboxTool("tool1");
         const response = await tool({"a": num1, "b": num2})
         return response;
     }

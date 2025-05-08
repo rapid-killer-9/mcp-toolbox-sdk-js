@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-function ToolboxTool(name) {
-    const callable = async function(action) {
-        // MOCK API CALL
-        async function api_resp(a, b) {
-            await new Promise(resolve => setTimeout(resolve, 10));
-            return a + 2 * b;
-        }
+function ToolboxTool(name: string) {
+    const callable = async function(action: any) {
+      // MOCK API CALL
+      async function api_resp(a: number, b: number) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return a + 2 * b;
+      }
 
-        const result = await api_resp(action.a, action.b);
-        return result;
+      const result = await api_resp(action.a, action.b);
+      return result;
     };
     callable.toolName = name;
     callable.getName = function() {
