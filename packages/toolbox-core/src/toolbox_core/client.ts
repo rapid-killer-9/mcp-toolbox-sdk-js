@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ToolboxTool } from './tool';
+import { ToolboxTool } from "./tool";
 
 class ToolboxClient {
   /** @private */ _baseUrl;
