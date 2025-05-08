@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ToolboxTool } from "./tool";
+import { ToolboxTool } from './tool';
+
+// Just testing if lint workflow is working
 
 class ToolboxClient {
   /** @private */ _baseUrl;
@@ -20,8 +22,10 @@ class ToolboxClient {
   /**
    * @param {string} url - The base URL for the Toolbox service API.
    */
-  constructor(url: string) {
-    this._baseUrl = url;
+  constructor(
+      url: string,
+  ) {
+      this._baseUrl = url;
   }
 
   /**
@@ -30,9 +34,9 @@ class ToolboxClient {
    * @returns {int} - Mock API response.
    */
   async getToolResponse(num1: number, num2: number) {
-    const tool = ToolboxTool("tool1");
-    const response = await tool({ a: num1, b: num2 });
-    return response;
+      const tool = ToolboxTool('tool1');
+      const response = await tool({'a': num1, 'b': num2});
+      return response;
   }
 }
 
