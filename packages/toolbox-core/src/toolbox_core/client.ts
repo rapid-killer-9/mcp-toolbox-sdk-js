@@ -14,8 +14,6 @@
 
 import { ToolboxTool } from './tool';
 
-// Just testing if lint workflow is working
-
 class ToolboxClient {
   /** @private */ _baseUrl;
 
