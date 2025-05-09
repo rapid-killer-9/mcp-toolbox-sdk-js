@@ -1,0 +1,44 @@
+{
+  extends: [
+    'config:recommended',
+    ':semanticCommits',
+    ':ignoreUnstable',
+    'group:allNonMajor',
+    ':separateMajorReleases',
+    ':prConcurrentLimitNone',
+    ':prHourlyLimitNone',
+    ':preserveSemverRanges',
+  ],
+  minimumReleaseAge: '3',
+  rebaseWhen: 'conflicted',
+  dependencyDashboardLabels: [
+    'type: process',
+  ],
+  packageRules: [
+    {
+      groupName: 'GitHub Actions',
+      matchManagers: [
+        'github-actions',
+      ],
+      pinDigests: true,
+    },
+    {
+      "groupName": "js-ts-nonmajor",
+      "matchCategories": [
+        "js",
+        "typescript"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ]
+    },
+    {
+      groupName: 'kokoro dependencies',
+      matchFileNames: [
+        '.kokoro/**',
+      ],
+    },
+  ],
+  "ignoreDeps": ["typescript"],
+}
