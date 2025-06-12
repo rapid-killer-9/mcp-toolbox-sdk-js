@@ -19,10 +19,15 @@ import {
   type AxiosRequestConfig,
   type AxiosResponse,
 } from 'axios';
-import {ZodManifestSchema, createZodSchemaFromParams} from './protocol.js';
+import {
+  ZodManifestSchema,
+  createZodSchemaFromParams,
+  ParameterSchema,
+} from './protocol.js';
 import {logApiError} from './errorUtils.js';
 import {ZodError} from 'zod';
-import {BoundParams, BoundValue, resolveValue} from './utils.js';
+import {BoundParams, identifyAuthRequirements, resolveValue} from './utils.js';
+import {AuthTokenGetters, RequiredAuthnParams} from './tool.js';
 
 type Manifest = import('zod').infer<typeof ZodManifestSchema>;
 type ToolSchemaFromManifest = Manifest['tools'][string];
@@ -123,33 +128,52 @@ class ToolboxClient {
   #createToolInstance(
     toolName: string,
     toolSchema: ToolSchemaFromManifest,
+    authTokenGetters: AuthTokenGetters = {},
     boundParams: BoundParams = {}
   ): {
     tool: ReturnType<typeof ToolboxTool>;
+    usedAuthKeys: Set<string>;
     usedBoundKeys: Set<string>;
   } {
-    const toolParamNames = new Set(toolSchema.parameters.map(p => p.name));
-    const applicableBoundParams: Record<string, BoundValue> = {};
-    const usedBoundKeys = new Set<string>();
+    const params: ParameterSchema[] = [];
+    const authParams: RequiredAuthnParams = {};
+    const currBoundParams: BoundParams = {};
 
-    for (const key in boundParams) {
-      if (toolParamNames.has(key)) {
-        applicableBoundParams[key] = boundParams[key];
-        usedBoundKeys.add(key);
+    for (const p of toolSchema.parameters) {
+      if (p.authSources && p.authSources.length > 0) {
+        authParams[p.name] = p.authSources;
+      } else if (boundParams && p.name in boundParams) {
+        currBoundParams[p.name] = boundParams[p.name];
+      } else {
+        params.push(p);
       }
     }
 
-    const paramZodSchema = createZodSchemaFromParams(toolSchema.parameters);
+    const [remainingAuthnParams, remainingAuthzTokens, usedAuthKeys] =
+      identifyAuthRequirements(
+        authParams,
+        toolSchema.authRequired || [],
+        authTokenGetters ? Object.keys(authTokenGetters) : []
+      );
+
+    const paramZodSchema = createZodSchemaFromParams(params);
+
     const tool = ToolboxTool(
       this.#session,
       this.#baseUrl,
       toolName,
       toolSchema.description,
       paramZodSchema,
-      applicableBoundParams,
+      authTokenGetters,
+      remainingAuthnParams,
+      remainingAuthzTokens,
+      currBoundParams,
       this.#clientHeaders
     );
-    return {tool, usedBoundKeys};
+
+    const usedBoundKeys = new Set(Object.keys(currBoundParams));
+
+    return {tool, usedAuthKeys, usedBoundKeys};
   }
 
   /**
@@ -159,7 +183,8 @@ class ToolboxClient {
    * tool remotely.
    *
    * @param {string} name - The unique name or identifier of the tool to load.
-   * @param {BoundParams} [boundParams] - Optional parameters to pre-bind to the tool.
+   * @param {AuthTokenGetters | null} [authTokenGetters] - Optional map of auth service names to token getters.
+   * @param {BoundParams | null} [boundParams] - Optional parameters to pre-bind to the tool.
    * @returns {Promise<ReturnType<typeof ToolboxTool>>} A promise that resolves
    * to a ToolboxTool function, ready for execution.
    * @throws {Error} If the tool is not found in the manifest, the manifest structure is invalid,
@@ -167,32 +192,50 @@ class ToolboxClient {
    */
   async loadTool(
     name: string,
-    boundParams: BoundParams = {}
+    authTokenGetters: AuthTokenGetters | null = {},
+    boundParams: BoundParams | null = {}
   ): Promise<ReturnType<typeof ToolboxTool>> {
     const apiPath = `/api/tool/${name}`;
     const manifest = await this.#fetchAndParseManifest(apiPath);
 
     if (
-      manifest.tools && // Zod ensures manifest.tools exists if schema requires it
+      manifest.tools &&
       Object.prototype.hasOwnProperty.call(manifest.tools, name)
     ) {
       const specificToolSchema = manifest.tools[name];
-      const {tool, usedBoundKeys} = this.#createToolInstance(
+      const {tool, usedAuthKeys, usedBoundKeys} = this.#createToolInstance(
         name,
         specificToolSchema,
-        boundParams
+        authTokenGetters || undefined,
+        boundParams || {}
       );
 
-      const providedBoundKeys = Object.keys(boundParams);
-      const unusedBound = providedBoundKeys.filter(
+      const providedAuthKeys = new Set(
+        authTokenGetters ? Object.keys(authTokenGetters) : []
+      );
+      const providedBoundKeys = new Set(
+        boundParams ? Object.keys(boundParams) : []
+      );
+      const unusedAuth = [...providedAuthKeys].filter(
+        key => !usedAuthKeys.has(key)
+      );
+      const unusedBound = [...providedBoundKeys].filter(
         key => !usedBoundKeys.has(key)
       );
 
+      const errorMessages: string[] = [];
+      if (unusedAuth.length > 0) {
+        errorMessages.push(`unused auth tokens: ${unusedAuth.join(', ')}`);
+      }
       if (unusedBound.length > 0) {
+        errorMessages.push(
+          `unused bound parameters: ${unusedBound.join(', ')}`
+        );
+      }
+
+      if (errorMessages.length > 0) {
         throw new Error(
-          `Validation failed for tool '${name}': unused bound parameters: ${unusedBound.join(
-            ', '
-          )}.`
+          `Validation failed for tool '${name}': ${errorMessages.join('; ')}.`
         );
       }
       return tool;
@@ -205,14 +248,18 @@ class ToolboxClient {
    * Asynchronously fetches a toolset and loads all tools defined within it.
    *
    * @param {string | null} [name] - Name of the toolset to load. If null or undefined, loads the default toolset.
-   * @param {BoundParams} [boundParams] - Optional parameters to pre-bind to the tools in the toolset.
+   * @param {AuthTokenGetters | null} [authTokenGetters] - Optional map of auth service names to token getters.
+   * @param {BoundParams | null} [boundParams] - Optional parameters to pre-bind to the tools in the toolset.
+   * @param {boolean} [strict=false] - If true, throws an error if any provided auth token or bound param is not used by at least one tool.
    * @returns {Promise<Array<ReturnType<typeof ToolboxTool>>>} A promise that resolves
    * to a list of ToolboxTool functions, ready for execution.
    * @throws {Error} If the manifest structure is invalid or if there's an error fetching data from the API.
    */
   async loadToolset(
     name?: string,
-    boundParams: BoundParams = {}
+    authTokenGetters: AuthTokenGetters | null = {},
+    boundParams: BoundParams | null = {},
+    strict = false
   ): Promise<Array<ReturnType<typeof ToolboxTool>>> {
     const toolsetName = name || '';
     const apiPath = `/api/toolset/${toolsetName}`;
@@ -220,31 +267,76 @@ class ToolboxClient {
     const manifest = await this.#fetchAndParseManifest(apiPath);
     const tools: Array<ReturnType<typeof ToolboxTool>> = [];
 
-    const providedBoundKeys = new Set(Object.keys(boundParams));
+    const overallUsedAuthKeys: Set<string> = new Set();
     const overallUsedBoundParams: Set<string> = new Set();
+    const providedAuthKeys = new Set(
+      authTokenGetters ? Object.keys(authTokenGetters) : []
+    );
+    const providedBoundKeys = new Set(
+      boundParams ? Object.keys(boundParams) : []
+    );
 
     for (const [toolName, toolSchema] of Object.entries(manifest.tools)) {
-      const {tool, usedBoundKeys} = this.#createToolInstance(
+      const {tool, usedAuthKeys, usedBoundKeys} = this.#createToolInstance(
         toolName,
         toolSchema,
-        boundParams
+        authTokenGetters || {},
+        boundParams || {}
       );
       tools.push(tool);
-      usedBoundKeys.forEach((key: string) => overallUsedBoundParams.add(key));
+
+      if (strict) {
+        const unusedAuth = [...providedAuthKeys].filter(
+          key => !usedAuthKeys.has(key)
+        );
+        const unusedBound = [...providedBoundKeys].filter(
+          key => !usedBoundKeys.has(key)
+        );
+        const errorMessages: string[] = [];
+        if (unusedAuth.length > 0) {
+          errorMessages.push(`unused auth tokens: ${unusedAuth.join(', ')}`);
+        }
+        if (unusedBound.length > 0) {
+          errorMessages.push(
+            `unused bound parameters: ${unusedBound.join(', ')}`
+          );
+        }
+        if (errorMessages.length > 0) {
+          throw new Error(
+            `Validation failed for tool '${toolName}': ${errorMessages.join('; ')}.`
+          );
+        }
+      } else {
+        usedAuthKeys.forEach(key => overallUsedAuthKeys.add(key));
+        usedBoundKeys.forEach(key => overallUsedBoundParams.add(key));
+      }
     }
 
-    const unusedBound = [...providedBoundKeys].filter(
-      k => !overallUsedBoundParams.has(k)
-    );
-    if (unusedBound.length > 0) {
-      throw new Error(
-        `Validation failed for toolset '${
-          name || 'default'
-        }': unused bound parameters could not be applied to any tool: ${unusedBound.join(
-          ', '
-        )}.`
+    if (!strict) {
+      const unusedAuth = [...providedAuthKeys].filter(
+        key => !overallUsedAuthKeys.has(key)
       );
+      const unusedBound = [...providedBoundKeys].filter(
+        key => !overallUsedBoundParams.has(key)
+      );
+      const errorMessages: string[] = [];
+      if (unusedAuth.length > 0) {
+        errorMessages.push(
+          `unused auth tokens could not be applied to any tool: ${unusedAuth.join(', ')}`
+        );
+      }
+      if (unusedBound.length > 0) {
+        errorMessages.push(
+          `unused bound parameters could not be applied to any tool: ${unusedBound.join(', ')}`
+        );
+      }
+      if (errorMessages.length > 0) {
+        throw new Error(
+          `Validation failed for toolset '${name || 'default'}': ${errorMessages.join('; ')}.`
+        );
+      }
     }
+
     return tools;
   }
 }
