@@ -307,7 +307,7 @@ describe('ToolboxTool', () => {
       expect(mockAxiosPost).toHaveBeenCalledWith(expectedUrl, validArgs, {
         headers: {},
       });
-      expect(result).toEqual(mockApiResponseData);
+      expect(result).toEqual(JSON.stringify(mockApiResponseData));
     });
 
     it('should re-throw the error and log to console.error if API call fails', async () => {
