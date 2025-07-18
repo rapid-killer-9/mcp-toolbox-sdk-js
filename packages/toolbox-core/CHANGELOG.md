@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.1](https://github.com/googleapis/mcp-toolbox-sdk-js/compare/core-v0.1.0...core-v0.1.1) (2025-07-17)
+
+
+### Features
+
+* **toolbox-core:** Add support for optional parameters ([#66](https://github.com/googleapis/mcp-toolbox-sdk-js/issues/66)) ([bfbc4f6](https://github.com/googleapis/mcp-toolbox-sdk-js/commit/bfbc4f66d62688aee2754a2ef73d78af5c075306))
+
+
+### Bug Fixes
+
+* **toolbox-core:** Simplify tool invocation response handling ([#69](https://github.com/googleapis/mcp-toolbox-sdk-js/issues/69)) ([c7dce48](https://github.com/googleapis/mcp-toolbox-sdk-js/commit/c7dce4844462ddf415872257c217808791ad5e9a))
+
 ## 0.1.0 (2025-06-23)
 
 
