@@ -14,8 +14,38 @@
 
 import {z, ZodRawShape, ZodTypeAny, ZodObject} from 'zod';
 
-// Define All Interfaces
+// Type Definitions
+interface StringType {
+  type: 'string';
+}
+interface IntegerType {
+  type: 'integer';
+}
+interface FloatType {
+  type: 'float';
+}
+interface BooleanType {
+  type: 'boolean';
+}
+interface ArrayType {
+  type: 'array';
+  items: TypeSchema; // Recursive
+}
+interface ObjectType {
+  type: 'object';
+  additionalProperties?: boolean | TypeSchema; // Recursive
+}
 
+// Union of all pure type definitions.
+export type TypeSchema =
+  | StringType
+  | IntegerType
+  | FloatType
+  | BooleanType
+  | ArrayType
+  | ObjectType;
+
+// The base properties of a named parameter.
 interface BaseParameter {
   name: string;
   description: string;
@@ -23,36 +53,24 @@ interface BaseParameter {
   required?: boolean;
 }
 
-interface StringParameter extends BaseParameter {
-  type: 'string';
-}
+export type ParameterSchema = BaseParameter & TypeSchema;
 
-interface IntegerParameter extends BaseParameter {
-  type: 'integer';
-}
+// Zod schema for the pure type definitions. This must be lazy for recursion.
+const ZodTypeSchema: z.ZodType<TypeSchema> = z.lazy(() =>
+  z.discriminatedUnion('type', [
+    z.object({type: z.literal('string')}),
+    z.object({type: z.literal('integer')}),
+    z.object({type: z.literal('float')}),
+    z.object({type: z.literal('boolean')}),
+    z.object({type: z.literal('array'), items: ZodTypeSchema}),
+    z.object({
+      type: z.literal('object'),
+      additionalProperties: z.union([z.boolean(), ZodTypeSchema]).optional(),
+    }),
+  ]),
+);
 
-interface FloatParameter extends BaseParameter {
-  type: 'float';
-}
-
-interface BooleanParameter extends BaseParameter {
-  type: 'boolean';
-}
-
-interface ArrayParameter extends BaseParameter {
-  type: 'array';
-  items: ParameterSchema; // Recursive reference to the ParameterSchema type
-}
-
-export type ParameterSchema =
-  | StringParameter
-  | IntegerParameter
-  | FloatParameter
-  | BooleanParameter
-  | ArrayParameter;
-
-// Get all Zod schema types
-
+// Zod schema for the base properties.
 const ZodBaseParameter = z.object({
   name: z.string().min(1, 'Parameter name cannot be empty'),
   description: z.string(),
@@ -60,26 +78,8 @@ const ZodBaseParameter = z.object({
   required: z.boolean().optional(),
 });
 
-export const ZodParameterSchema = z.lazy(() =>
-  z.discriminatedUnion('type', [
-    ZodBaseParameter.extend({
-      type: z.literal('string'),
-    }),
-    ZodBaseParameter.extend({
-      type: z.literal('integer'),
-    }),
-    ZodBaseParameter.extend({
-      type: z.literal('float'),
-    }),
-    ZodBaseParameter.extend({
-      type: z.literal('boolean'),
-    }),
-    ZodBaseParameter.extend({
-      type: z.literal('array'),
-      items: ZodParameterSchema, // Recursive reference for the item's definition
-    }),
-  ]),
-) as z.ZodType<ParameterSchema>;
+export const ZodParameterSchema: z.ZodType<ParameterSchema> =
+  ZodBaseParameter.and(ZodTypeSchema);
 
 export const ZodToolSchema = z.object({
   description: z.string().min(1, 'Tool description cannot be empty'),
@@ -97,52 +97,44 @@ export const ZodManifestSchema = z.object({
 
 export type ZodManifest = z.infer<typeof ZodManifestSchema>;
 
-/**
- * Recursively builds a Zod schema for a single parameter based on its TypeScript definition.
- * @param param The ParameterSchema (TypeScript type) to convert.
- * @returns A ZodTypeAny representing the schema for this parameter.
- */
-function buildZodShapeFromParam(param: ParameterSchema): ZodTypeAny {
-  let schema: ZodTypeAny;
-  switch (param.type) {
+function buildZodShapeFromTypeSchema(typeSchema: TypeSchema): ZodTypeAny {
+  switch (typeSchema.type) {
     case 'string':
-      schema = z.string();
-      break;
+      return z.string();
     case 'integer':
-      schema = z.number().int();
-      break;
+      return z.number().int();
     case 'float':
-      schema = z.number();
-      break;
+      return z.number();
     case 'boolean':
-      schema = z.boolean();
-      break;
+      return z.boolean();
     case 'array':
-      // Recursively build the schema for array items
-      // Array items inherit the 'required' status of the parent array.
-      param.items.required = param.required;
-      schema = z.array(buildZodShapeFromParam(param.items));
-      break;
+      return z.array(buildZodShapeFromTypeSchema(typeSchema.items));
+    case 'object':
+      if (typeof typeSchema.additionalProperties === 'object') {
+        return z.record(
+          z.string(),
+          buildZodShapeFromTypeSchema(typeSchema.additionalProperties),
+        );
+      } else if (typeSchema.additionalProperties === false) {
+        return z.object({});
+      } else {
+        return z.record(z.string(), z.any());
+      }
     default: {
-      // This ensures exhaustiveness at compile time if ParameterSchema is a discriminated union
-      const _exhaustiveCheck: never = param;
+      const _exhaustiveCheck: never = typeSchema;
       throw new Error(`Unknown parameter type: ${_exhaustiveCheck['type']}`);
     }
   }
+}
 
+function buildZodShapeFromParam(param: ParameterSchema): ZodTypeAny {
+  const schema = buildZodShapeFromTypeSchema(param);
   if (param.required === false) {
     return schema.nullish();
   }
-
   return schema;
 }
 
-/**
- * Creates a ZodObject schema from an array of ParameterSchema (TypeScript types).
- * This combined schema is used by ToolboxTool to validate its call arguments.
- * @param params Array of ParameterSchema objects.
- * @returns A ZodObject schema.
- */
 export function createZodSchemaFromParams(
   params: ParameterSchema[],
 ): ZodObject<ZodRawShape> {

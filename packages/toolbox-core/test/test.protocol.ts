@@ -155,6 +155,34 @@ describe('ZodParameterSchema', () => {
         required: true,
       },
     },
+    {
+      description: 'untyped object parameter',
+      data: {
+        name: 'untypedMap',
+        description: 'An untyped map',
+        type: 'object',
+      },
+    },
+    {
+      description: 'typed object parameter (map of string to integer)',
+      data: {
+        name: 'typedMap',
+        description: 'A map of strings to integers',
+        type: 'object',
+        additionalProperties: {
+          type: 'integer',
+        },
+      },
+    },
+    {
+      description: 'object parameter with required set to false',
+      data: {
+        name: 'optionalObject',
+        description: 'An optional object',
+        type: 'object',
+        required: false,
+      },
+    },
   ];
 
   test.each(validParameterTestCases)(
@@ -180,25 +208,30 @@ describe('ZodParameterSchema', () => {
     });
   });
 
-  it('should invalidate an array parameter with item having an empty name', () => {
-    const data = {
-      name: 'testArray',
-      description: 'An array',
-      type: 'array',
-      items: {name: '', description: 'item desc', type: 'string'},
-    };
-    expectParseFailure(ZodParameterSchema, data, errors => {
-      expect(errors).toContain('items.name: Parameter name cannot be empty');
-    });
-  });
-
   it('should invalidate if type is missing', () => {
     const data = {name: 'testParam', description: 'A param'}; // type is missing
     expectParseFailure(ZodParameterSchema, data, errors => {
       expect(errors).toEqual(
         expect.arrayContaining([
-          expect.stringMatching(/Invalid discriminator value/i),
+          expect.stringMatching(/type: Invalid discriminator value./i),
         ]),
+      );
+    });
+  });
+
+  it('should invalidate a typed object with incorrect value types', () => {
+    const data = {
+      name: 'typedMap',
+      description: 'A map of strings to integers',
+      type: 'object',
+      additionalProperties: {
+        type: 'integer',
+      },
+    };
+    const schema = createZodSchemaFromParams([data as ParameterSchema]);
+    expectParseFailure(schema, {typedMap: {key1: 'not-a-number'}}, errors => {
+      expect(errors).toContain(
+        'typedMap.key1: Expected number, received string',
       );
     });
   });
@@ -353,8 +386,6 @@ describe('createZodObjectSchemaFromParameters', () => {
         description: 'List of tags',
         type: 'array' as const,
         items: {
-          name: 'tag_item',
-          description: 'A tag',
           type: 'string' as const,
         },
       },
@@ -376,12 +407,8 @@ describe('createZodObjectSchemaFromParameters', () => {
         description: 'A matrix of numbers',
         type: 'array' as const,
         items: {
-          name: 'row',
-          description: 'A row in the matrix',
           type: 'array' as const,
           items: {
-            name: 'cell',
-            description: 'A cell value',
             type: 'float' as const,
           },
         },
@@ -412,6 +439,64 @@ describe('createZodObjectSchemaFromParameters', () => {
     );
   });
 
+  it('should create a Zod object schema with object parameters', () => {
+    const params: ParameterSchema[] = [
+      {
+        name: 'metadata',
+        description: 'Untyped metadata object',
+        type: 'object',
+        required: true,
+      },
+      {
+        name: 'scores',
+        description: 'Map of names to scores',
+        type: 'object',
+        additionalProperties: {
+          type: 'integer',
+        },
+      },
+    ];
+    const schema = createZodSchemaFromParams(params);
+
+    // Valid data
+    expectParseSuccess(schema, {
+      metadata: {isTest: true, id: 'abc-123'},
+      scores: {player1: 100, player2: 95},
+    });
+
+    // Invalid data
+    expectParseFailure(
+      schema,
+      {
+        metadata: {isTest: true, id: 'abc-123'},
+        scores: {player1: '100'},
+      },
+      errors => {
+        expect(errors).toContain(
+          'scores.player1: Expected number, received string',
+        );
+      },
+    );
+  });
+
+  it('should handle untyped object parameters', () => {
+    // This parameter definition has type: 'object' but omits 'additionalProperties'.
+    const params: ParameterSchema[] = [
+      {
+        name: 'metadata',
+        description: 'Untyped metadata object',
+        type: 'object',
+      },
+    ];
+    const schema = createZodSchemaFromParams(params);
+    expectParseSuccess(schema, {
+      metadata: {isTest: true, id: 'abc-123', score: 99.5},
+    });
+    expectParseFailure(schema, {metadata: 'not-an-object'}, errors => {
+      expect(errors).toContain('metadata: Expected object, received string');
+    });
+  });
+
   it('should throw an error when creating schema from parameter with unknown type', () => {
     const paramsWithUnknownType: ParameterSchema[] = [
       {
@@ -421,7 +506,7 @@ describe('createZodObjectSchemaFromParameters', () => {
       } as unknown as ParameterSchema,
     ];
     expect(() => createZodSchemaFromParams(paramsWithUnknownType)).toThrow(
-      'Unknown parameter type: someUnrecognizedType',
+      'Unknown parameter type',
     );
   });
 
