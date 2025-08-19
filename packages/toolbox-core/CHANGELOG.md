@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.2](https://github.com/googleapis/mcp-toolbox-sdk-js/compare/core-v0.1.1...core-v0.1.2) (2025-08-19)
+
+
+### Features
+
+* Add support for map parameter type ([#78](https://github.com/googleapis/mcp-toolbox-sdk-js/issues/78)) ([5de08c1](https://github.com/googleapis/mcp-toolbox-sdk-js/commit/5de08c10368ffe67ccb776ecda6cdab0a1a76484))
+
+
+### Bug fixes
+
+* Revert back zod version to v3 ([#88](https://github.com/googleapis/mcp-toolbox-sdk-js/issues/88)) ([6163c34](https://github.com/googleapis/mcp-toolbox-sdk-js/commit/6163c340c577926b5f2d5607abde5e2c1131ee59))
+
+
+### Documentation
+
+* Add note regarding local testing ([#89](https://github.com/googleapis/mcp-toolbox-sdk-js/issues/89)) ([6ed5348](https://github.com/googleapis/mcp-toolbox-sdk-js/commit/6ed53481a89d459c057352c7db237326dd10b35f))
+* fix method name ([#76](https://github.com/googleapis/mcp-toolbox-sdk-js/issues/76)) ([6f18e99](https://github.com/googleapis/mcp-toolbox-sdk-js/commit/6f18e99242533a0313c8c27206127b22927626d2))
+* improve contributor guidance ([#72](https://github.com/googleapis/mcp-toolbox-sdk-js/issues/72)) ([7012e0a](https://github.com/googleapis/mcp-toolbox-sdk-js/commit/7012e0a477872db6e68a535a67acb772ed6ca2e1))
+
 ## [0.1.1](https://github.com/googleapis/mcp-toolbox-sdk-js/compare/core-v0.1.0...core-v0.1.1) (2025-07-17)
 
 
