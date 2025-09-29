@@ -497,6 +497,27 @@ describe('createZodObjectSchemaFromParameters', () => {
     });
   });
 
+  it('should handle object parameters with additionalProperties set to false', () => {
+    // This parameter definition has type: 'object' with additionalProperties: false
+    const params: ParameterSchema[] = [
+      {
+        name: 'strictObject',
+        description: 'Object with no additional properties allowed',
+        type: 'object',
+        additionalProperties: false,
+      },
+    ];
+    const schema = createZodSchemaFromParams(params);
+    expectParseSuccess(schema, {
+      strictObject: {},
+    });
+    expectParseFailure(schema, {strictObject: 'not-an-object'}, errors => {
+      expect(errors).toContain(
+        'strictObject: Expected object, received string',
+      );
+    });
+  });
+
   it('should throw an error when creating schema from parameter with unknown type', () => {
     const paramsWithUnknownType: ParameterSchema[] = [
       {
