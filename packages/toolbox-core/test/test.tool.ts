@@ -634,5 +634,29 @@ describe('ToolboxTool', () => {
         },
       );
     });
+
+    it('should throw an error if client header does not resolve to a string', async () => {
+      const clientHeaders = {
+        'X-Valid-Header': 'valid-string',
+        'X-Invalid-Header': (() => 123) as any, // This will resolve to a number, not a string
+      };
+
+      const toolWithBadHeader = ToolboxTool(
+        mockSession,
+        baseURL,
+        toolName,
+        toolDescription,
+        basicParamSchema,
+        {},
+        {},
+        [],
+        {},
+        clientHeaders,
+      );
+
+      await expect(toolWithBadHeader({query: 'test'})).rejects.toThrow(
+        "Client header 'X-Invalid-Header' did not resolve to a string.",
+      );
+    });
   });
 });

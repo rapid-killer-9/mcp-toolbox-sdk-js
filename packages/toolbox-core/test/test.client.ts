@@ -461,6 +461,29 @@ describe('ToolboxClient', () => {
         `Validation failed for tool '${toolName}': unused auth tokens: UnusedService.`,
       );
     });
+
+    it('should handle null authTokenGetters parameter', async () => {
+      const mockToolDefinition = {
+        description: 'A simple tool',
+        parameters: [{name: 'param1', type: 'string', description: 'A param'}],
+      };
+      setupMocksForSuccessfulLoad(mockToolDefinition);
+
+      const loadedTool = await client.loadTool(toolName, null);
+      expect(loadedTool).toBeDefined();
+      expect(MockedToolboxToolFactory).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        {}, // authTokenGetters should be empty object when null is passed
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+      );
+    });
   });
 
   // --- loadToolset Tests ---
@@ -826,6 +849,53 @@ describe('ToolboxClient', () => {
           "Validation failed for tool 'toolA': unused auth tokens: ServiceB.",
         );
       });
+
+      it('should handle null parameters in strict mode', async () => {
+        const toolsetName = 'strict-set-null';
+        const mockToolDefinitions: Record<string, InferredZodTool> = {
+          toolA: {
+            description: 'Tool A',
+            parameters: [{name: 'paramA', type: 'string'} as ParameterSchema],
+          },
+        };
+        setupMocksForSuccessfulToolsetLoad(mockToolDefinitions);
+
+        const tools = await client.loadToolset(toolsetName, null, null, true);
+        expect(tools).toHaveLength(1);
+      });
+
+      it('should throw an error for both unused auth tokens and unused bound parameters in strict mode', async () => {
+        const toolsetName = 'strict-set-combined';
+        const mockToolDefinitions: Record<string, InferredZodTool> = {
+          toolA: {
+            description: 'Tool A',
+            parameters: [{name: 'paramA', type: 'string'} as ParameterSchema],
+          },
+        };
+        const authTokenGetters = {UnusedAuth: () => 'token'};
+        const boundParams = {paramA: 'valA', unusedParam: 'valUnused'};
+        setupMocksForSuccessfulToolsetLoad(mockToolDefinitions);
+
+        await expect(
+          client.loadToolset(toolsetName, authTokenGetters, boundParams, true),
+        ).rejects.toThrow(
+          "Validation failed for tool 'toolA': unused auth tokens: UnusedAuth; unused bound parameters: unusedParam.",
+        );
+      });
+    });
+
+    it('should handle null authTokenGetters in loadToolset', async () => {
+      const toolsetName = 'test-null-auth';
+      const mockToolDefinitions: Record<string, InferredZodTool> = {
+        toolA: {
+          description: 'Tool A',
+          parameters: [{name: 'paramA', type: 'string'} as ParameterSchema],
+        },
+      };
+      setupMocksForSuccessfulToolsetLoad(mockToolDefinitions);
+
+      const tools = await client.loadToolset(toolsetName, null);
+      expect(tools).toHaveLength(1);
     });
   });
 });
