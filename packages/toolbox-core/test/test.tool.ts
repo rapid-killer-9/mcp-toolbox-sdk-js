@@ -16,6 +16,7 @@ import {ToolboxTool} from '../src/toolbox_core/tool.js';
 import {z, ZodObject, ZodRawShape} from 'zod';
 import {AxiosInstance, AxiosResponse} from 'axios';
 import * as utils from '../src/toolbox_core/utils.js';
+import {ClientHeadersConfig} from '../src/toolbox_core/client.js';
 
 // Global mocks
 const mockAxiosPost = jest.fn();
@@ -636,10 +637,9 @@ describe('ToolboxTool', () => {
     });
 
     it('should throw an error if client header does not resolve to a string', async () => {
-      const clientHeaders = {
+      const clientHeaders: ClientHeadersConfig = {
         'X-Valid-Header': 'valid-string',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        'X-Invalid-Header': (() => 123) as any, // This will resolve to a number, not a string
+        'X-Invalid-Header': (() => 123) as unknown as () => string, 
       };
 
       const toolWithBadHeader = ToolboxTool(
