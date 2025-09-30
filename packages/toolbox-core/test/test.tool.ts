@@ -16,6 +16,7 @@ import {ToolboxTool} from '../src/toolbox_core/tool.js';
 import {z, ZodObject, ZodRawShape} from 'zod';
 import {AxiosInstance, AxiosResponse} from 'axios';
 import * as utils from '../src/toolbox_core/utils.js';
+import {ClientHeadersConfig} from '../src/toolbox_core/client.js';
 
 // Global mocks
 const mockAxiosPost = jest.fn();
@@ -632,6 +633,30 @@ describe('ToolboxTool', () => {
             'x-another-header': 'client-value',
           },
         },
+      );
+    });
+
+    it('should throw an error if client header does not resolve to a string', async () => {
+      const clientHeaders: ClientHeadersConfig = {
+        'X-Valid-Header': 'valid-string',
+        'X-Invalid-Header': (() => 123) as unknown as () => string,
+      };
+
+      const toolWithBadHeader = ToolboxTool(
+        mockSession,
+        baseURL,
+        toolName,
+        toolDescription,
+        basicParamSchema,
+        {},
+        {},
+        [],
+        {},
+        clientHeaders,
+      );
+
+      await expect(toolWithBadHeader({query: 'test'})).rejects.toThrow(
+        "Client header 'X-Invalid-Header' did not resolve to a string.",
       );
     });
   });
