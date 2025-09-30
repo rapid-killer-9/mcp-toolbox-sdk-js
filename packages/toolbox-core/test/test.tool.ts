@@ -639,7 +639,7 @@ describe('ToolboxTool', () => {
     it('should throw an error if client header does not resolve to a string', async () => {
       const clientHeaders: ClientHeadersConfig = {
         'X-Valid-Header': 'valid-string',
-        'X-Invalid-Header': (() => 123) as unknown as () => string, 
+        'X-Invalid-Header': (() => 123) as unknown as () => string,
       };
 
       const toolWithBadHeader = ToolboxTool(
